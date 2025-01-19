@@ -1,33 +1,12 @@
-from flask import Flask, request, render_template, jsonify
-from flask_cors import CORS
-
-import pickle
-import numpy as np
 import os
-from model import preprocess_audio, predict_alzheimer
-
-test_audio = "audio.wav"  # Replace with the uploaded audio file path
-# Replace with the trained model path
-model_file = "alzheimer_back/api/alzheimer_model.h5"
-""" print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%first print%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-res1,res2,res3 ,res4= predict_alzheimer(test_audio, model_file)
-print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% result %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-print(res1)
-print(res2)
-print(res3)
-print(res4) """
-
+import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-CORS(app)
-UPLOAD_FOLDER = 'alzheimer_back/uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    return render_template('index.html')
-
+# Vercel Blob Storage information
+STORE_URL = "https://p3rgufsgjts1ytbg.public.blob.vercel-storage.com"
+STORE_ID = "store_P3RgufsGJTS1YTbg"
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -37,25 +16,36 @@ def predict():
     file = request.files['file']
     if file.filename == '':
         return jsonify({"msg": "No file selected."})
+
     if file:
         filename = file.filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # Set the path for temporary file saving
+        file_path = os.path.join("uploads", filename)
         file.save(file_path)
 
-        # Preprocess the audio file and make prediction
-        preprocessed_audio = preprocess_audio(file_path)
-        res1, res2, res3, res4 = predict_alzheimer(
-            preprocessed_audio, model_file)
-        print(res4)
-        # Return the prediction results
-        return jsonify({
-            "res3": res3,
-            "res4": str(res4)
-        })
-        # return render_template('result.html', res1=res1, res2=res2, res3=res3, res4=res4)
+        # Upload the file to Vercel Blob Storage
+        upload_url = f"{STORE_URL}/{filename}"
 
+        with open(file_path, 'rb') as f:
+            response = requests.put(upload_url, data=f)
+
+        if response.status_code == 200:
+            # Successfully uploaded to Blob Storage
+            uploaded_url = f"{STORE_URL}/{filename}"
+            print(f"File uploaded to: {uploaded_url}")
+
+            # Process the uploaded file (e.g., prediction logic)
+            preprocessed_audio = preprocess_audio(file_path)
+            res1, res2, res3, res4 = predict_alzheimer(preprocessed_audio)
+
+            # Return prediction results
+            return jsonify({
+                "res3": res3,
+                "res4": str(res4),
+                "file_url": uploaded_url  # Return the Blob URL for reference
+            })
+        else:
+            return jsonify({"msg": "Failed to upload file to Blob Storage."}), 500
 
 if __name__ == "__main__":
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-    app.run()
+    app.run(debug=True)

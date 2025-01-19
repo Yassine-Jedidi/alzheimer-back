@@ -19,15 +19,11 @@ def predict():
 
     if file:
         filename = file.filename
-        # Set the path for temporary file saving
-        file_path = os.path.join("uploads", filename)
-        file.save(file_path)
-
-        # Upload the file to Vercel Blob Storage
+        # Define the blob URL to upload to
         upload_url = f"{STORE_URL}/{filename}"
 
-        with open(file_path, 'rb') as f:
-            response = requests.put(upload_url, data=f)
+        # Upload the file directly to Vercel Blob Storage
+        response = requests.put(upload_url, data=file)
 
         if response.status_code == 200:
             # Successfully uploaded to Blob Storage
@@ -35,7 +31,8 @@ def predict():
             print(f"File uploaded to: {uploaded_url}")
 
             # Process the uploaded file (e.g., prediction logic)
-            preprocessed_audio = preprocess_audio(file_path)
+            # Preprocess the audio and call your prediction functions
+            preprocessed_audio = preprocess_audio(file)  # Adjust function to handle in-memory file
             res1, res2, res3, res4 = predict_alzheimer(preprocessed_audio)
 
             # Return prediction results
